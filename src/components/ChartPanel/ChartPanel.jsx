@@ -34,11 +34,8 @@ function todayIndex() {
 
 // Count consecutive days (backwards from today) that had at least 1 task completed
 function calcStreak(tasks) {
-  if (!tasks.length) return { streak: 0, activeDays: [] }
+  if (!tasks.length) return { streak: 0, activeDays: new Set() }
 
-  // Build a Set of date strings when tasks were completed
-  // We use createdAt as a proxy for "active on this day" (task created OR toggled done)
-  // To track done toggling we store completedAt — fall back to createdAt
   const doneDates = new Set()
   tasks.forEach(t => {
     if (t.done) {
@@ -49,23 +46,22 @@ function calcStreak(tasks) {
     }
   })
 
-  // Walk backwards from today
   let streak = 0
+  const activeDaysArr = []
   const today = new Date()
-  const activeDays = []
   for (let i = 0; i < 30; i++) {
     const d = new Date(today)
     d.setDate(today.getDate() - i)
     const ds = d.toISOString().slice(0, 10)
     if (doneDates.has(ds)) {
       streak++
-      activeDays.push(ds)
+      activeDaysArr.push(ds)
     } else if (i > 0) {
-      break // gap found, stop
+      break
     }
   }
 
-  return { streak, activeDays: new Set(activeDays) }
+  return { streak, activeDays: new Set(activeDaysArr) }
 }
 
 function CustomTooltip({ active, payload, label }) {
@@ -163,16 +159,15 @@ export default function ChartPanel({ user }) {
         <div className="chart-card-title">Tỉ lệ hoàn thành</div>
         <div className="completion-wrap">
           <div className="completion-ring-wrap">
-            <ResponsiveContainer width={120} height={120}>
-              <RadialBarChart
-                cx="50%" cy="50%"
-                innerRadius="65%" outerRadius="90%"
-                startAngle={90} endAngle={-270}
-                data={radialData}
-              >
-                <RadialBar dataKey="value" cornerRadius={6} background={{ fill: 'var(--surface3)' }} />
-              </RadialBarChart>
-            </ResponsiveContainer>
+            <RadialBarChart
+              width={120} height={120}
+              cx="50%" cy="50%"
+              innerRadius="65%" outerRadius="90%"
+              startAngle={90} endAngle={-270}
+              data={radialData}
+            >
+              <RadialBar dataKey="value" cornerRadius={6} background={{ fill: 'var(--surface3)' }} />
+            </RadialBarChart>
             <div className="completion-center">
               <span className="completion-pct">{completionPct}%</span>
             </div>
@@ -219,14 +214,12 @@ export default function ChartPanel({ user }) {
         <div className="chart-card-title">Phân bổ môn học</div>
         {hasSubjects ? (
           <div className="pie-wrap">
-            <ResponsiveContainer width={120} height={120}>
-              <PieChart>
+            <PieChart width={120} height={120}>
                 <Pie data={subjectData} cx="50%" cy="50%" innerRadius={30} outerRadius={55} paddingAngle={3} dataKey="value">
                   {subjectData.map((entry, i) => <Cell key={i} fill={entry.color} />)}
                 </Pie>
                 <Tooltip content={<CustomTooltip />} />
               </PieChart>
-            </ResponsiveContainer>
             <div className="pie-legend">
               {subjectData.map((s, i) => (
                 <div key={i} className="pie-legend-item">
@@ -288,3 +281,4 @@ export default function ChartPanel({ user }) {
     </div>
   )
 }
+// commit test

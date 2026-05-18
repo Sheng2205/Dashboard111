@@ -28,27 +28,30 @@ function useLocalStorage(key, defaultVal) {
   return [val, save]
 }
 
-export default function TodoPanel({ user, activePage }) {
+export default function TodoPanel({ user, activePage, theme, toggleTheme, onLogout }) {
   const storageKey = `studyflow_tasks_${user.id}`
   const notesKey = `studyflow_notes_${user.id}`
   const bookmarkKey = `studyflow_bookmarks_${user.id}`
   const scheduleKey = `studyflow_schedule_${user.id}`
+  const statsKey = `studyflow_stats_${user.id}`
   const DEFAULT_SCHEDULE = { T2: [], T3: [], T4: [], T5: [], T6: [], T7: [], CN: [] }
 
   const [tasks, setTasks] = useLocalStorage(storageKey, [])
   const [notes, setNotes] = useLocalStorage(notesKey, '')
   const [bookmarks, setBookmarks] = useLocalStorage(bookmarkKey, [])
   const [schedule, setSchedule] = useLocalStorage(scheduleKey, DEFAULT_SCHEDULE)
+  const [stats, setStats] = useLocalStorage(statsKey, { totalCreated: 0, totalDeleted: 0 })
 
   const [quoteIdx] = useState(() => Math.floor(Math.random() * QUOTES.length))
-  const [newTask, setNewTask] = useState({ title: '', subject: 'Toán', priority: 'medium', deadline: '' })
+  const [newTask, setNewTask] = useState({ title: '', subject: '', priority: '', deadline: '' })
   const [showForm, setShowForm] = useState(false)
   const [filter, setFilter] = useState('all')
   const [editingNote, setEditingNote] = useState(false)
   const [bookmarkInput, setBookmarkInput] = useState({ title: '', url: '' })
   const [showBMForm, setShowBMForm] = useState(false)
-  const [editingDay, setEditingDay] = useState(null) // which day is being edited
+  const [editingDay, setEditingDay] = useState(null)
   const [newSubjectInput, setNewSubjectInput] = useState('')
+  const [confirm, setConfirm] = useState(null) // { type: 'single'|'all', id?: number }
   const inputRef = useRef()
 
   useEffect(() => {
@@ -57,8 +60,26 @@ export default function TodoPanel({ user, activePage }) {
 
   const quote = QUOTES[quoteIdx]
 
+  const [taskFormError, setTaskFormError] = useState('')
+
   const addTask = () => {
-    if (!newTask.title.trim()) return
+    if (!newTask.title.trim()) {
+      setTaskFormError('Vui lòng nhập tên nhiệm vụ.')
+      return
+    }
+    if (!newTask.subject) {
+      setTaskFormError('Vui lòng chọn môn học.')
+      return
+    }
+    if (!newTask.priority) {
+      setTaskFormError('Vui lòng chọn mức độ ưu tiên.')
+      return
+    }
+    if (!newTask.deadline) {
+      setTaskFormError('Vui lòng chọn ngày deadline.')
+      return
+    }
+    setTaskFormError('')
     const task = {
       id: Date.now(),
       title: newTask.title.trim(),
@@ -69,7 +90,8 @@ export default function TodoPanel({ user, activePage }) {
       createdAt: Date.now(),
     }
     setTasks([task, ...tasks])
-    setNewTask({ title: '', subject: 'Toán', priority: 'medium', deadline: '' })
+    setStats({ ...stats, totalCreated: stats.totalCreated + 1 })
+    setNewTask({ title: '', subject: '', priority: '', deadline: '' })
     setShowForm(false)
   }
 
@@ -77,16 +99,24 @@ export default function TodoPanel({ user, activePage }) {
     setTasks(tasks.map(t => {
       if (t.id !== id) return t
       const nowDone = !t.done
-      return {
-        ...t,
-        done: nowDone,
-        completedAt: nowDone ? Date.now() : null,
-      }
+      return { ...t, done: nowDone, completedAt: nowDone ? Date.now() : null }
     }))
   }
 
-  const deleteTask = (id) => {
-    setTasks(tasks.filter(t => t.id !== id))
+  const requestDelete = (id) => setConfirm({ type: 'single', id })
+  const requestDeleteAll = () => setConfirm({ type: 'all' })
+
+  const confirmAction = () => {
+    if (confirm.type === 'single') {
+      setTasks(tasks.filter(t => t.id !== confirm.id))
+      setStats({ ...stats, totalDeleted: stats.totalDeleted + 1 })
+    }
+    if (confirm.type === 'all') {
+      const deletedCount = tasks.filter(t => t.done).length
+      setTasks(tasks.filter(t => !t.done))
+      setStats({ ...stats, totalDeleted: stats.totalDeleted + deletedCount })
+    }
+    setConfirm(null)
   }
 
   const addBookmark = () => {
@@ -316,20 +346,50 @@ export default function TodoPanel({ user, activePage }) {
               <p className="settings-user-email">{user.email}</p>
             </div>
           </div>
+
           <div className="settings-stats">
             <div className="settings-stat">
-              <span className="settings-stat-val">{tasks.length}</span>
-              <span className="settings-stat-label">Tổng task</span>
+              <span className="settings-stat-val">{stats.totalCreated}</span>
+              <span className="settings-stat-label">Đã tạo</span>
             </div>
             <div className="settings-stat">
-              <span className="settings-stat-val">{tasks.filter(t => t.done).length}</span>
-              <span className="settings-stat-label">Hoàn thành</span>
+              <span className="settings-stat-val">{tasks.filter(t => t.done).length + stats.totalDeleted}</span>
+              <span className="settings-stat-label">Đã xong</span>
             </div>
             <div className="settings-stat">
-              <span className="settings-stat-val">{bookmarks.length}</span>
-              <span className="settings-stat-label">Bookmark</span>
+              <span className="settings-stat-val">{stats.totalDeleted}</span>
+              <span className="settings-stat-label">Đã xoá</span>
             </div>
           </div>
+
+          {/* Theme Toggle */}
+          <div className="settings-row">
+            <div className="settings-row-info">
+              <span className="settings-row-title">
+                {theme === 'dark' ? '🌙 Giao diện tối' : '☀️ Giao diện sáng'}
+              </span>
+              <span className="settings-row-desc">
+                {theme === 'dark' ? 'Đang dùng Dark Mode' : 'Đang dùng Light Mode'}
+              </span>
+            </div>
+            <button
+              className={`theme-toggle ${theme === 'light' ? 'light' : ''}`}
+              onClick={toggleTheme}
+              aria-label="Toggle theme"
+            >
+              <span className="theme-toggle-thumb" />
+            </button>
+          </div>
+
+          {/* Logout */}
+          <button className="settings-logout-btn" onClick={onLogout}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/>
+              <polyline points="16 17 21 12 16 7"/>
+              <line x1="21" y1="12" x2="9" y2="12"/>
+            </svg>
+            Đăng xuất
+          </button>
         </div>
       </div>
     )
@@ -345,21 +405,52 @@ export default function TodoPanel({ user, activePage }) {
         <span className="quote-author">— {quote.author}</span>
       </div>
 
+      {/* Confirm Modal */}
+      {confirm && (
+        <div className="confirm-overlay" onClick={() => setConfirm(null)}>
+          <div className="confirm-box" onClick={e => e.stopPropagation()}>
+            <div className="confirm-icon">🗑️</div>
+            <p className="confirm-title">
+              {confirm.type === 'all' ? 'Xoá tất cả task?' : 'Xoá task này?'}
+            </p>
+            <p className="confirm-desc">
+              {confirm.type === 'all'
+                ? `${tasks.filter(t => t.done).length} task đã hoàn thành sẽ bị xoá vĩnh viễn.`
+                : `"${tasks.find(t => t.id === confirm.id)?.title}" sẽ bị xoá.`}
+            </p>
+            <div className="confirm-actions">
+              <button className="confirm-cancel" onClick={() => setConfirm(null)}>Huỷ</button>
+              <button className="confirm-ok" onClick={confirmAction}>Xoá</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Todo Header */}
       <div className="todo-header">
         <div>
           <h2 className="todo-heading">Nhiệm vụ học tập</h2>
           <p className="todo-subheading">
-            {tasks.filter(t => t.done).length}/{tasks.length} hoàn thành
+            {tasks.filter(t => t.done).length} hoàn thành · {stats.totalCreated} task tổng cộng
           </p>
         </div>
-        <button className="add-btn" onClick={() => setShowForm(v => !v)}>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-            <line x1="12" y1="5" x2="12" y2="19"/>
-            <line x1="5" y1="12" x2="19" y2="12"/>
-          </svg>
-          Thêm task
-        </button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          {tasks.filter(t => t.done).length > 0 && (
+            <button className="delete-all-btn" onClick={requestDeleteAll}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/>
+              </svg>
+              Xoá đã hoàn thành
+            </button>
+          )}
+          <button className="add-btn" onClick={() => setShowForm(v => !v)}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <line x1="12" y1="5" x2="12" y2="19"/>
+              <line x1="5" y1="12" x2="19" y2="12"/>
+            </svg>
+            Thêm task
+          </button>
+        </div>
       </div>
 
       {/* Add Form */}
@@ -370,34 +461,44 @@ export default function TodoPanel({ user, activePage }) {
             className="form-input"
             placeholder="Tên nhiệm vụ..."
             value={newTask.title}
-            onChange={e => setNewTask({ ...newTask, title: e.target.value })}
+            onChange={e => { setNewTask({ ...newTask, title: e.target.value }); setTaskFormError('') }}
             onKeyDown={e => e.key === 'Enter' && addTask()}
           />
           <div className="form-row">
             <select
-              className="form-select"
+              className={`form-select ${taskFormError && !newTask.subject ? 'input-error' : ''}`}
               value={newTask.subject}
-              onChange={e => setNewTask({ ...newTask, subject: e.target.value })}
+              onChange={e => { setNewTask({ ...newTask, subject: e.target.value }); setTaskFormError('') }}
             >
+              <option value="">Chọn môn học</option>
               {SUBJECTS.map(s => <option key={s} value={s}>{s}</option>)}
             </select>
             <select
-              className="form-select"
+              className={`form-select ${taskFormError && !newTask.priority ? 'input-error' : ''}`}
               value={newTask.priority}
-              onChange={e => setNewTask({ ...newTask, priority: e.target.value })}
+              onChange={e => { setNewTask({ ...newTask, priority: e.target.value }); setTaskFormError('') }}
             >
+              <option value="">Chọn mức độ ưu tiên</option>
               {PRIORITIES.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
             </select>
             <input
               type="date"
-              className="form-input form-date"
+              className={`form-input form-date ${taskFormError && !newTask.deadline ? 'input-error' : ''}`}
               value={newTask.deadline}
-              onChange={e => setNewTask({ ...newTask, deadline: e.target.value })}
+              onChange={e => { setNewTask({ ...newTask, deadline: e.target.value }); setTaskFormError('') }}
             />
           </div>
+          {taskFormError && (
+            <div className="task-form-error">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+              </svg>
+              {taskFormError}
+            </div>
+          )}
           <div className="form-actions">
             <button className="form-save" onClick={addTask}>Lưu</button>
-            <button className="form-cancel" onClick={() => setShowForm(false)}>Huỷ</button>
+            <button className="form-cancel" onClick={() => { setShowForm(false); setTaskFormError('') }}>Huỷ</button>
           </div>
         </div>
       )}
@@ -427,7 +528,7 @@ export default function TodoPanel({ user, activePage }) {
           </div>
         )}
         {filtered.map(task => {
-          const priority = getPriority(task.priority)
+          const priority = getPriority(task.priority) || { color: 'var(--text-muted)', label: '—' }
           return (
             <div key={task.id} className={`task-item ${task.done ? 'done' : ''}`}>
               <button
@@ -455,9 +556,14 @@ export default function TodoPanel({ user, activePage }) {
                   )}
                 </div>
               </div>
-              <button className="task-delete" onClick={() => deleteTask(task.id)}>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+              <button
+                className={`task-delete ${!task.done ? 'task-delete-disabled' : ''}`}
+                onClick={() => task.done && requestDelete(task.id)}
+                disabled={!task.done}
+                title={task.done ? 'Xoá task' : 'Chỉ xoá được task đã hoàn thành'}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/>
                 </svg>
               </button>
             </div>
