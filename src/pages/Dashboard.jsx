@@ -4,7 +4,7 @@ import TodoPanel from '../components/TodoPanel/TodoPanel.jsx'
 import ChartPanel from '../components/ChartPanel/ChartPanel.jsx'
 import './Dashboard.css'
 
-export default function Dashboard({ user, onLogout }) {
+export default function Dashboard({ user, onLogout, theme, toggleTheme }) {
   const [activePage, setActivePage] = useState('home')
 
   return (
@@ -16,7 +16,7 @@ export default function Dashboard({ user, onLogout }) {
         onLogout={onLogout}
       />
       <main className="dashboard-main">
-        <TodoPanel user={user} activePage={activePage} />
+        <TodoPanel user={user} activePage={activePage} theme={theme} toggleTheme={toggleTheme} onLogout={onLogout} />
         <ChartPanel user={user} />
       </main>
     </div>
